@@ -1,88 +1,12 @@
+var config = require("./Config.js").Initialize();
 var server = require("http").createServer(handler);
 var url = require("url");
 var io = require("socket.io").listen(server);
 var querystring = require("querystring");
 var mysql = require("mysql");
-var usersConnection = mysql.createConnection({
-    host : "localhost",
-    user : "root",
-    password : "password",
-});
-var sessionsConnection = mysql.createConnection({
-    host : "localhost",
-    user : "root",
-    password : "password",
-});
-var User = function() {
-    this.id = null;
-    this.username = null;
-    this.sessionId = null;
-    this.phpsessid = null;
-    this.socket = null;
-    this.timeout = null;
-    this.avatarPath = null;
-}
-
-User.prototype.UpdateTimeout = function() {
-    var self = this;
-    
-    console.log("Updating inactivity timeout for user " + self.id + " (5 minutes left)");
-    if (self.timeOut)
-        clearTimeout(self.timeOut);
-    self.timeOut = setTimeout(function() { self.LogOff(); }, 300000);
-};
-User.prototype.LogOff = function() {
-    var self = this;
-    
-    sessionsConnection.query("DELETE FROM sessions WHERE id = ?", self.phpsessid, function(err) {
-        if (err)
-            console.log("MySQL error: " + err.description);
-        usersConnection.query("UPDATE user_data SET random_session_id = NULL, is_online = 0 WHERE id = ?", self.id, function(err) {
-            if (self.socket)
-            {
-                self.socket.emit("disconnection", { type: "FORCED" });
-                self.socket.disconnect();
-            }
-            clearTimeout(self.timeout);
-            usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1", self.id, function(err, results, fields) {
-                if (err)
-                    console.log("MySQL error: " + err.description);
-
-                for (var i in results)
-                {
-                    if (users[results[i].id])
-                        users[results[i].id].SendFriendLogOff(self.id, self.username, self.avatarPath);
-                }
-                users.splice(self.id, 1);
-                console.log("User " + self.id + " has logged off successfully");
-            });
-        });
-    });
-};
-User.prototype.SendFriendLogIn = function(friendId, friendName, friendAvatarPath) {
-    var self = this;
-    
-    if (self.socket)
-        self.socket.emit("friendLogin", { friendId : friendId, friendName : friendName, friendAvatarPath : friendAvatarPath });
-};
-User.prototype.SendFriendLogOff = function(friendId, friendName, friendAvatarPath) {
-    var self = this;
-    
-    if (self.socket)
-        self.socket.emit("friendLogoff", { friendId : friendId, friendName : friendName, friendAvatarPath : friendAvatarPath });
-};
-User.prototype.SendChatMessage = function(userId, message) {
-    var self = this;
-    
-    if (self.socket)
-        self.socket.emit("parseChatMessage", { friendName : users[userId].username, message : message });
-};
-User.prototype.SendChatInvitation = function(userId) {
-    var self = this;
-    
-    if (self.socket)
-        self.socket.emit("enterChat", { friendId : userId, friendName : users[userId].username });
-};
+var crypto = require("crypto");
+var usersConnection = mysql.createConnection(config.mysql);
+var sessionsConnection = mysql.createConnection(config.mysql);
 var users = new Array();
 
 console.log("Welcome to GamersHub's Real Time Web App Server.");
@@ -99,19 +23,26 @@ console.log("Connection to sessions's database established successfully.");
 console.log("Loading currently online users from the database...");
 
 // Load all online users from DB
-usersConnection.query("SELECT a.id, a.username, a.random_session_id, b.avatar_path FROM user_data AS a, user_avatars AS b WHERE is_online = 1 AND a.id = b.user_id", function(err, results, fields) {
+usersConnection.query("SELECT a.id, a.username, a.password_sha1, a.random_session_id, b.avatar_path FROM user_data AS a, user_avatars AS b WHERE is_online = 1 AND a.id = b.user_id", function(err, results, fields) {
+    if (err)
+        console.log("MySQL error: " + err.message);
+    
     for (var i in results)
     {
-        var user = new User();
+        var user = require("./User.js").Initialize();
         user.id = results[i].id;
         user.username = results[i].username;
         user.sessionId = results[i].random_session_id;
+        user.passwordSha1 = results[i].password_sha1;
         user.avatarPath = results[i].avatar_path;
-        user.UpdateTimeout();
+        user.UpdateTimeout(sessionsConnection, usersConnection, users);
         users[user.id] = user;
         console.log("User " + results[i].id + " has been reloaded from the database, is now logged in.");
     }
     sessionsConnection.query("SELECT id, data FROM sessions", function(err, results, fields) {
+        if (err)
+            console.log("MySQL error: " + err.message);
+        
         for (var i in results)
         {
             var userId = results[i].data;
@@ -124,7 +55,7 @@ usersConnection.query("SELECT a.id, a.username, a.random_session_id, b.avatar_pa
                 console.log("User " + userId + " has a binded PHPSESSID, but is not logged in. Removing from database.");
                 sessionsConnection.query("DELETE FROM sessions WHERE id = ?", results[i].id, function(err) {
                     if (err)
-                        console.log("MySQL error: " + err.description);
+                        console.log("MySQL error: " + err.message);
                 });
             }
         }
@@ -142,7 +73,7 @@ function handler (request, response) {
     {
         console.log("Login request received");
         var callback = urlParts.query.callback;
-        var user = new User();
+        var user = require("./User.js").Initialize();
         user.id = urlParts.query.userId;
         user.sessionId = urlParts.query.sessionId;
         
@@ -155,7 +86,7 @@ function handler (request, response) {
         }
         
         console.log("User " + user.id + " is trying to log in with RNDSESSID " + user.sessionId);
-        usersConnection.query("SELECT a.username, b.avatar_path FROM user_data AS a, user_avatars AS b WHERE id = ? AND random_session_id = ? AND a.id = b.user_id", [user.id, user.sessionId], function(err, results, fields) {
+        usersConnection.query("SELECT a.username, a.password_sha1, b.avatar_path FROM user_data AS a, user_avatars AS b WHERE id = ? AND random_session_id = ? AND a.id = b.user_id", [user.id, user.sessionId], function(err, results, fields) {
             if (err)
             {
                 console.log("MySQL error: " + err.message);
@@ -167,6 +98,7 @@ function handler (request, response) {
             {
                 user.username = results[0].username;
                 user.avatarPath = results[0].avatar_path;
+                user.passwordSha1 = results[0].password_sha1;
                 sessionsConnection.query("SELECT id FROM sessions WHERE data = 'userId|i:" + user.id + ";'", function(err, results, fields) {
                     if (err)
                     {
@@ -177,7 +109,7 @@ function handler (request, response) {
                     if (results.length > 0)
                     {
                         user.phpsessid = results[0].id;
-                        user.UpdateTimeout();
+                        user.UpdateTimeout(sessionsConnection, usersConnection, users);
                         users[user.id] = user;
                         response.end(callback + "(" + JSON.stringify({ status : "SUCCESS" }) + ")");
                         console.log("User " + user.id + " successfully logged in.");
@@ -211,6 +143,7 @@ function handler (request, response) {
                 response.write("    Session: " + users[i].sessionId + "\n");
                 response.write("    Username: " + users[i].username + "\n");
                 response.write("    PHPSESSID: " + users[i].phpsessid + "\n");
+                response.write("    PasswordSha1: " + users[i].passwordSha1 + "\n");
                 response.write("    AvatarPath: " + users[i].avatarPath + "\n");
             }
         }
@@ -241,37 +174,62 @@ io.sockets.on("connection", function (socket) {
                         console.log("Trying to logoff the disconnected user " + data.userId + " detected!");
                         return;
                     }
-                    users[data.userId].LogOff();
+                    users[data.userId].LogOff(sessionsConnection, usersConnection, users);
                 });
                 socket.on("chatInvitation", function(data) {
                     if (users[data.friendId])
-                        users[data.friendId].SendChatInvitation(data.userId);
+                        users[data.friendId].SendChatInvitation(users[data.userId]);
                 });
                 socket.on("chatMessage", function(data) {
                     console.log("Sending new chat message of " + data.userId + " to " + data.friendId);
                     if (users[data.friendId])
-                        users[data.friendId].SendChatMessage(data.userId, data.message);
+                        users[data.friendId].SendChatMessage(users[data.userId], data.message);
                 });
                 socket.on("ping", function(data) {
                     if (users[data.userId])
-                        users[data.userId].UpdateTimeout();
+                        if (!users[data.userId].isAfk)
+                            users[data.userId].UpdateTimeout(sessionsConnection, usersConnection, users);
+                });
+                socket.on("enableAfk", function(data) {
+                    if (users[data.userId])
+                    {
+                        users[data.userId].SetAfk(sessionsConnection, usersConnection);
+                        users[data.userId].UpdateTimeout(sessionsConnection, usersConnection, users, 600000);
+                    }
+                });
+                socket.on("disableAfk", function(data) {
+                    if (users[data.userId] && data.password)
+                    {
+                        var sha1Sum = crypto.createHash("sha1");
+                        sha1Sum.update(users[data.userId].username + ":" + data.password);
+                        var cryptoPass = sha1Sum.digest("hex");
+                        
+                        console.log("User " + data.userId + " is trying to unlock his sessios with password: " + cryptoPass);
+                        if (users[data.userId].passwordSha1 == cryptoPass)
+                            users[data.userId].UnsetAfk(sessionsConnection, usersConnection);
+                        else
+                        {
+                            console.log("User " + data.userId + " can't unlock his session, incorrect password");
+                            users[data.userId].socket.emit("afkModeDisabled", { success: false });
+                        }
+                    }
                 });
                 if (users[data.userId].socket)
                 {
                     // If the user has an opened socket stored, just replace the old by the new one.
                     socket.emit("logged", { status: "SUCCESS" });
                     users[data.userId].socket = socket;
-                    users[data.userId].UpdateTimeout();
+                    users[data.userId].UpdateTimeout(sessionsConnection, usersConnection, users);
                     console.log("User " + data.userId + " has reconnected successfully");
                     return;
                 }
                 users[data.userId].socket = socket;
                 socket.emit("logged", { status: "SUCCESS" });
                 // Send that a friend has logged in to the friends
-                usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1", data.userId, function(err, results, fields) {
+                usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1", [data.userId], function(err, results, fields) {
                     if (err)
                     {
-                        console.log("MySQL error: " + err.description);
+                        console.log("MySQL error: " + err.message);
                         return;
                     }
                     // Is this blocking code?
