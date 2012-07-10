@@ -15,42 +15,43 @@ User.prototype.UpdateTimeout = function(sessionsConnection, usersConnection, use
     var id = self.id;
     
     if (!forcedTimeout)
-        var forcedTimeout = 20000;
+        var forcedTimeout = 200000;
     
     console.log("Updating inactivity timeout for user " + id + " (20 seconds left)");
-    if (self.timeOut)
-        clearTimeout(self.timeOut);
-    self.timeOut = setTimeout(function() {
-        self.LogOff(sessionsConnection, usersConnection, usersArray);
+    if (self.timeout)
+        clearTimeout(self.timeout);
+    self.timeout = setTimeout(function() {
+        usersArray[id].LogOff(sessionsConnection, usersConnection, usersArray);
     }, forcedTimeout);
 };
 User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray) {
     var self = this;
     
+    clearTimeout(self.timeout);
     sessionsConnection.query("DELETE FROM sessions WHERE id = ?", [self.phpsessid], function(err) {
         if (err)
             console.log("MySQL sessions error: " + err.message);
-        usersConnection.query("UPDATE user_data SET random_session_id = NULL, is_online = 0 WHERE id = ?", [self.id], function(err) {
-            if (self.socket)
-            {
-                self.socket.emit("disconnection", { type: "FORCED" });
-                self.socket.disconnect();
-            }
-            clearTimeout(self.timeout);
-            usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1", [self.id], function(err, results, fields) {
-                if (err)
-                    console.log("MySQL users error: " + err.message);
-
-                for (var i in results)
-                {
-                    if (usersArray[results[i].id])
-                        usersArray[results[i].id].SendFriendLogOff(self.id, self.username, self.avatarPath);
-                }
-                usersArray.splice(self.id, 1);
-                console.log("User " + self.id + " has logged off successfully");
-            });
-        });
     });
+    usersConnection.query("UPDATE user_data SET random_session_id = NULL, is_online = 0 WHERE id = ?", [self.id], function(err) {
+        if (self.socket)
+        {
+            self.socket.emit("disconnection", { type: "FORCED" });
+            self.socket.disconnect();
+        }
+    });
+    usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1",
+                          [self.id], function(err, results, fields) {
+        if (err)
+            console.log("MySQL users error: " + err.message);
+
+        for (var i in results)
+        {
+            if (usersArray[results[i].id])
+                usersArray[results[i].id].SendFriendLogOff(self.id, self.username, self.avatarPath);
+        }
+    });
+    usersArray.splice(self.id, 1);
+    console.log("User " + self.id + " has logged off successfully");
 };
 User.prototype.SetAfk = function(sessionsConnection, usersConnection) {
     var self = this;

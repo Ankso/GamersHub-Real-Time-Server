@@ -171,7 +171,7 @@ io.sockets.on("connection", function (socket) {
                     // This should never happen
                     if (!users[data.userId])
                     {
-                        console.log("Trying to logoff the disconnected user " + data.userId + " detected!");
+                        console.log("Try to logoff the disconnected user " + data.userId + " detected!");
                         return;
                     }
                     users[data.userId].LogOff(sessionsConnection, usersConnection, users);

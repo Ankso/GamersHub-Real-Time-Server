@@ -1,7 +1,7 @@
 function Config() {
     this.mysql = {
-        host: "localhost",
-        user: "root",
+        host    : "localhost",
+        user    : "root",
         password: "password",
     }
 }
