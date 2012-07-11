@@ -18,3 +18,5 @@ A real time event-oriented server written in JavaScript using NodeJS, that handl
 
 -Execute the Server.js script with node:
 >node Server.js
+
+**Note that the files must be placed in the NodeJS root folder.**

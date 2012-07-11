@@ -1,12 +1,12 @@
 var config = require("./Config.js").Initialize();
+var opcodeHandler = require("./OpcodeHandler.js").Initialize();
 var server = require("http").createServer(handler);
 var url = require("url");
 var io = require("socket.io").listen(server);
 var querystring = require("querystring");
 var mysql = require("mysql");
-var crypto = require("crypto");
-var usersConnection = mysql.createConnection(config.mysql);
-var sessionsConnection = mysql.createConnection(config.mysql);
+var usersConnection = mysql.createConnection(config.MYSQL);
+var sessionsConnection = mysql.createConnection(config.MYSQL);
 var users = new Array();
 
 console.log("Welcome to GamersHub's Real Time Web App Server.");
@@ -167,53 +167,7 @@ io.sockets.on("connection", function (socket) {
             {
                 // Add all necessary handlers to the socket
                 console.log("User " + data.userId + " data OK, connection established");
-                socket.on("logoff", function() {
-                    // This should never happen
-                    if (!users[data.userId])
-                    {
-                        console.log("Try to logoff the disconnected user " + data.userId + " detected!");
-                        return;
-                    }
-                    users[data.userId].LogOff(sessionsConnection, usersConnection, users);
-                });
-                socket.on("chatInvitation", function(data) {
-                    if (users[data.friendId])
-                        users[data.friendId].SendChatInvitation(users[data.userId]);
-                });
-                socket.on("chatMessage", function(data) {
-                    console.log("Sending new chat message of " + data.userId + " to " + data.friendId);
-                    if (users[data.friendId])
-                        users[data.friendId].SendChatMessage(users[data.userId], data.message);
-                });
-                socket.on("ping", function(data) {
-                    if (users[data.userId])
-                        if (!users[data.userId].isAfk)
-                            users[data.userId].UpdateTimeout(sessionsConnection, usersConnection, users);
-                });
-                socket.on("enableAfk", function(data) {
-                    if (users[data.userId])
-                    {
-                        users[data.userId].SetAfk(sessionsConnection, usersConnection);
-                        users[data.userId].UpdateTimeout(sessionsConnection, usersConnection, users, 600000);
-                    }
-                });
-                socket.on("disableAfk", function(data) {
-                    if (users[data.userId] && data.password)
-                    {
-                        var sha1Sum = crypto.createHash("sha1");
-                        sha1Sum.update(users[data.userId].username + ":" + data.password);
-                        var cryptoPass = sha1Sum.digest("hex");
-                        
-                        console.log("User " + data.userId + " is trying to unlock his sessios with password: " + cryptoPass);
-                        if (users[data.userId].passwordSha1 == cryptoPass)
-                            users[data.userId].UnsetAfk(sessionsConnection, usersConnection);
-                        else
-                        {
-                            console.log("User " + data.userId + " can't unlock his session, incorrect password");
-                            users[data.userId].socket.emit("afkModeDisabled", { success: false });
-                        }
-                    }
-                });
+                socket = opcodeHandler.InitializeSocket(socket, users, sessionsConnection, usersConnection);
                 if (users[data.userId].socket)
                 {
                     // If the user has an opened socket stored, just replace the old by the new one.

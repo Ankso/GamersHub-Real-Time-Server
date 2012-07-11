@@ -1,3 +1,5 @@
+var config = require("./Config.js").Initialize();
+
 var User = function() {
     this.id = null;
     this.username = null;
@@ -15,9 +17,9 @@ User.prototype.UpdateTimeout = function(sessionsConnection, usersConnection, use
     var id = self.id;
     
     if (!forcedTimeout)
-        var forcedTimeout = 200000;
+        var forcedTimeout = config.USER.MAX_TIME_BETWEEN_PINGS;
     
-    console.log("Updating inactivity timeout for user " + id + " (20 seconds left)");
+    console.log("Updating inactivity timeout for user " + id + " (" + forcedTimeout / 1000 + " seconds left)");
     if (self.timeout)
         clearTimeout(self.timeout);
     self.timeout = setTimeout(function() {
@@ -33,11 +35,8 @@ User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray
             console.log("MySQL sessions error: " + err.message);
     });
     usersConnection.query("UPDATE user_data SET random_session_id = NULL, is_online = 0 WHERE id = ?", [self.id], function(err) {
-        if (self.socket)
-        {
-            self.socket.emit("disconnection", { type: "FORCED" });
-            self.socket.disconnect();
-        }
+        if (err)
+            console.log("MySQL users error: " + err.message);
     });
     usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1",
                           [self.id], function(err, results, fields) {
@@ -50,6 +49,14 @@ User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray
                 usersArray[results[i].id].SendFriendLogOff(self.id, self.username, self.avatarPath);
         }
     });
+    // The socket must exist here, check just in case.
+    if (self.socket)
+    {
+        self.socket.emit("disconnection", { type: "FORCED" });
+        self.socket.disconnect();
+    }
+    else
+        console.log("Weird error: socket object doesn't exists for user " + self.id);
     usersArray.splice(self.id, 1);
     console.log("User " + self.id + " has logged off successfully");
 };
