@@ -6,7 +6,7 @@ var OpcodeHandler = function() {
 
 OpcodeHandler.prototype.InitializeSocket = function(socket, users, sessionsConnection, usersConnection) {
     // Add all necessary handlers to the socket
-    socket.on("logoff", function() {
+    socket.on("logoff", function(data) {
         // This should never happen
         if (!users[data.userId])
         {
