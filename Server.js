@@ -167,7 +167,9 @@ io.sockets.on("connection", function (socket) {
             {
                 // Add all necessary handlers to the socket
                 console.log("User " + data.userId + " data OK, connection established");
-                socket = opcodeHandler.InitializeSocket(socket, users, sessionsConnection, usersConnection);
+                socket.on("packet", function(data) {
+                    opcodeHandler.ProcessPacket(data, users, sessionsConnection, usersConnection);
+                });
                 if (users[data.userId].socket)
                 {
                     // If the user has an opened socket stored, just replace the old by the new one.
