@@ -15,7 +15,7 @@ function Config() {
         
         // THe maximun time that an user can be in AFK state before
         // being logged off by the server. 30 minutes or more recommended.
-        MAX_TIME_AFK          : 1800000, // 30 minutes.
+        MAX_TIME_AFK          : 3600000, // 60 minutes.
     }
 }
 

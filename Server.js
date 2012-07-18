@@ -23,7 +23,7 @@ console.log("Connection to sessions's database established successfully.");
 console.log("Loading currently online users from the database...");
 
 // Load all online users from DB
-usersConnection.query("SELECT a.id, a.username, a.password_sha1, a.random_session_id, b.avatar_path FROM user_data AS a, user_avatars AS b WHERE is_online = 1 AND a.id = b.user_id", function(err, results, fields) {
+usersConnection.query("SELECT a.id, a.username, a.password_sha1, a.random_session_id, b.avatar_path FROM user_data AS a, user_detailed_data AS b WHERE is_online = 1 AND a.id = b.user_id", function(err, results, fields) {
     if (err)
         console.log("MySQL error: " + err.message);
     
@@ -86,7 +86,7 @@ function handler (request, response) {
         }
         
         console.log("User " + user.id + " is trying to log in with RNDSESSID " + user.sessionId);
-        usersConnection.query("SELECT a.username, a.password_sha1, b.avatar_path FROM user_data AS a, user_avatars AS b WHERE id = ? AND random_session_id = ? AND a.id = b.user_id", [user.id, user.sessionId], function(err, results, fields) {
+        usersConnection.query("SELECT a.username, a.password_sha1, b.avatar_path FROM user_data AS a, user_detailed_data AS b WHERE id = ? AND random_session_id = ? AND a.id = b.user_id", [user.id, user.sessionId], function(err, results, fields) {
             if (err)
             {
                 console.log("MySQL error: " + err.message);
