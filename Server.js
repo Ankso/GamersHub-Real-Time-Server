@@ -86,6 +86,15 @@ function handler (request, response) {
         }
         
         console.log("User " + user.id + " is trying to log in with RNDSESSID " + user.sessionId);
+        
+        if (users[user.id])
+        {
+            console.log("User " + user.id + " is trying to log in from a different location, logging him off...");
+            // We should log the user off, send to the client that the user has been disconnected.
+            users[user.id].LogOff(sessionsConnection, usersConnection, users, response, callback);
+            // The response is writed and returned in the User.LogOff to make sure that the user is
+            // really logged off.
+        }
         usersConnection.query("SELECT a.username, a.password_sha1, b.avatar_path FROM user_data AS a, user_detailed_data AS b WHERE id = ? AND random_session_id = ? AND a.id = b.user_id", [user.id, user.sessionId], function(err, results, fields) {
             if (err)
             {
@@ -136,7 +145,7 @@ function handler (request, response) {
             response.write("No logged in users");
         else
         {
-            response.write("Users logged in:\n");
+            response.write("(" + users.length + ") Users logged in:\n");
             for (var i in users)
             {
                 response.write("User: " + users[i].id + ":\n");
@@ -145,6 +154,7 @@ function handler (request, response) {
                 response.write("    PHPSESSID: " + users[i].phpsessid + "\n");
                 response.write("    PasswordSha1: " + users[i].passwordSha1 + "\n");
                 response.write("    AvatarPath: " + users[i].avatarPath + "\n");
+                response.write("Debug: " + users[i] + "\n");
             }
         }
         response.end();

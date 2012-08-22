@@ -26,7 +26,7 @@ User.prototype.UpdateTimeout = function(sessionsConnection, usersConnection, use
         usersArray[id].LogOff(sessionsConnection, usersConnection, usersArray);
     }, forcedTimeout);
 };
-User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray) {
+User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray, response, responseCallback) {
     var self = this;
     
     clearTimeout(self.timeout);
@@ -42,14 +42,17 @@ User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray
                           [self.id], function(err, results, fields) {
         if (err)
             console.log("MySQL users error: " + err.message);
-
-        for (var i in results)
+        
+        if (!response)
         {
-            if (usersArray[results[i].id])
-                usersArray[results[i].id].SendFriendLogOff(self.id, self.username, self.avatarPath);
+            for (var i in results)
+            {
+                if (usersArray[results[i].id])
+                    usersArray[results[i].id].SendFriendLogOff(self.id, self.username, self.avatarPath);
+            }
         }
     });
-    // The socket must exist here, check just in case.
+    // The socket _must_ exists here, check just in case.
     if (self.socket)
     {
         self.socket.emit("disconnection", { type: "FORCED" });
@@ -58,6 +61,11 @@ User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray
     else
         console.log("Weird error: socket object doesn't exists for user " + self.id);
     usersArray.splice(self.id, 1);
+    if (response)
+    {
+        response.writeHead(200, { "Content-Type" : "application/json" });
+        response.end(responseCallback + "(" + JSON.stringify({ status : "ALREADY_LOGGED_IN" }) + ")");
+    }
     console.log("User " + self.id + " has logged off successfully");
 };
 User.prototype.SetAfk = function(sessionsConnection, usersConnection) {
