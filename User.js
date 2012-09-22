@@ -60,7 +60,7 @@ User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray
     }
     else
         console.log("Weird error: socket object doesn't exists for user " + self.id);
-    usersArray.splice(self.id, 1);
+    delete usersArray[self.id];
     if (response)
     {
         response.writeHead(200, { "Content-Type" : "application/json" });
