@@ -1,3 +1,22 @@
+console.log("");
+console.log("Welcome to...");
+console.log("");
+console.log("GGGGGG AAAAAA M    M EEEEEE RRRRR  | SSSSSS HH  HH UU  UU BBBBB   TM");
+console.log("G      A    A MM  MM EE     RR  RR   SS     HH  HH UU  UU BB  BB");
+console.log("G   GG AAAAAA M MM M EEEEE  RRRRR    SSSSSS HHHHHH UU  UU BBBBB");
+console.log("G    G A    A M    M EE     RR RR        SS HH  HH UU  UU BB  BB");
+console.log("GGGGGG A    A M    M EEEEEE RR  RR   SSSSSS HH  HH UUUUUU BBBBB");
+console.log("--------------------------------------------------------------------");
+console.log("RRRRRRRRR    TTTTTTTTTTTTT   SSSSSSSSSS ");
+console.log("RRR     RR   TTTTTTTTTTTTT  SSSSSSSSSS ");
+console.log("RRR      RR       TTT      SSS          ");
+console.log("RRR     RR        TTT       SSSSSSSSS  ");
+console.log("RRRRRRRRR         TTT        SSSSSSSSS ");
+console.log("RRR   RRR         TTT               SSS ");
+console.log("RRR    RRR        TTT       SSSSSSSSSS ");
+console.log("RRR     RRR EAL   TTT IME  SSSSSSSSSS ERVER");
+console.log("");
+
 var config = require("./Config.js").Initialize();
 var opcodeHandler = require("./OpcodeHandler.js").Initialize();
 var server = require("http").createServer(handler);
@@ -9,7 +28,6 @@ var usersConnection = mysql.createConnection(config.MYSQL);
 var sessionsConnection = mysql.createConnection(config.MYSQL);
 var users = new Array();
 
-console.log("Welcome to GamersHub's Real Time Web App Server.");
 console.log("Starting server on port 5124...");
 server.listen(5124);
 console.log("Server started successfully.");
