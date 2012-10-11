@@ -3,15 +3,17 @@ var config = require("./Config.js").Initialize();
 
 // Client-side opcodes (packets sended by the client)
 var ClientOpcodes = {
-    OPCODE_NULL                : 0, // Null opcode, used for testing/debug.
-    OPCODE_LOGOFF              : 1, // Received when the client loggs off.
-    OPCODE_PING                : 2, // Received each time that the client pings the server.
-    OPCODE_ENABLE_AFK          : 3, // Received when AFK mode is enabled client-side.
-    OPCODE_DISABLE_AFK         : 4, // Received when the client tries to disable AFK mode with his or her password.
-    OPCODE_CHAT_INVITATION     : 5, // Received when a client invites other client to a chat conversation.
-    OPCODE_CHAT_MESSAGE        : 6, // Received with each chat message between clients.
-    OPCODE_ONLINE_FRIENDS_LIST : 7, // Received as a request for an online friends list for an user.
-    TOTAL_CLIENT_OPCODES_COUNT : 8, // Total opcodes count (Not used by the way).
+    OPCODE_NULL                : 0,  // Null opcode, used for testing/debug.
+    OPCODE_LOGOFF              : 1,  // Received when the client loggs off.
+    OPCODE_PING                : 2,  // Received each time that the client pings the server.
+    OPCODE_ENABLE_AFK          : 3,  // Received when AFK mode is enabled client-side.
+    OPCODE_DISABLE_AFK         : 4,  // Received when the client tries to disable AFK mode with his or her password.
+    OPCODE_CHAT_INVITATION     : 5,  // Received when a client invites other client to a chat conversation.
+    OPCODE_CHAT_MESSAGE        : 6,  // Received with each chat message between clients.
+    OPCODE_ONLINE_FRIENDS_LIST : 7,  // Received as a request for an online friends list for an user.
+    OPCODE_START_PLAYING       : 8,  // Received when a user starts playing.
+    OPCODE_STOP_PLAYING        : 9,  // Received when a user stops playing.
+    TOTAL_CLIENT_OPCODES_COUNT : 10, // Total opcodes count (Not used by the way).
 };
 // Server-side opcodes (packets sended by the Server)
 var ServerOpcodes = {};
@@ -60,7 +62,7 @@ OpcodeHandler.prototype.ProcessPacket = function(data, users, sessionsConnection
         return false;
     }
     
-    // TODO: May be we must move some operational code from here specific functions.
+    // TODO: May be we must move some operational code from here to specific functions.
     switch(data.opcode)
     {
         case ClientOpcodes.OPCODE_NULL:
@@ -111,7 +113,8 @@ OpcodeHandler.prototype.ProcessPacket = function(data, users, sessionsConnection
             if (users[data.userId])
             {
                 console.log("User " + data.userId + " is asking for his online friends, creating response...");
-                usersConnection.query("SELECT b.id, b.username FROM user_friends AS a, user_data AS b WHERE a.user_id = ? AND a.friend_id = b.id AND b.is_online = 1 ORDER BY b.username", data.userId, function(err, results, fields) {
+                usersConnection.query("SELECT b.id, b.username, c.avatar_path FROM user_friends AS a, user_data AS b, user_detailed_data as c WHERE a.user_id = ? AND a.friend_id = b.id AND b.id = c.user_id AND b.is_online = 1 ORDER BY b.username",
+                                      [data.userId], function(err, results, fields) {
                     if (err)
                         console.log("MySQL error: " + err.message);
                     
@@ -124,7 +127,19 @@ OpcodeHandler.prototype.ProcessPacket = function(data, users, sessionsConnection
                             friendsList[i] = {
                                 id: results[i].id,
                                 userName: results[i].username,
+                                avatarPath: results[i].avatar_path,
                             };
+                            // Check if the user is playing something, and if he is, send the additional data
+                            if (users[results[i].id])
+                            {
+                                if (users[results[i].id].isPlaying)
+                                {
+                                    friendsList[i].isPlaying = true;
+                                    friendsList[i].gameInfo = users[results[i].id].gameInfo;
+                                }
+                                else
+                                    friendsList[i].isPlaying = false;
+                            }
                         }
                         console.log("User " + data.userId + " has " + i - 1 + " online friends, sending list.");
                     }
@@ -135,6 +150,43 @@ OpcodeHandler.prototype.ProcessPacket = function(data, users, sessionsConnection
                     }
 
                     users[data.userId].socket.emit("onlineFriendsList", { friendsList: friendsList});
+                });
+            }
+            break;
+        case ClientOpcodes.OPCODE_START_PLAYING:
+            if (users[data.userId])
+            {
+                console.log("User " + data.userId + " started playing game: " + data.gameId + " (" + data.gameTitle + ").");
+                users[data.userId].SetPlaying(true, data.gameId, data.gameTitle, data.gameImagePath);
+                usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1",
+                                      [data.userId], function(err, results, fields) {
+                    if (err)
+                        console.log("MySQL users error: " + err.message);
+                    
+                    for (var i in results)
+                    {
+                        if (users[results[i].id])
+                            users[results[i].id].SendFriendStartsPlaying(data.userId, data.gameId, data.gameTitle, data.gameImagePath);
+                    }
+                });
+                
+            }
+            break;
+        case ClientOpcodes.OPCODE_STOP_PLAYING:
+            if (users[data.userId])
+            {
+                console.log("User " + data.userId + " stoped playing game: " + users[data.userId].gameInfo.id + " (" + users[data.userId].gameInfo.title + ").");
+                users[data.userId].SetPlaying(false);
+                usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1",
+                                      [data.userId], function(err, results, fields) {
+                    if (err)
+                        console.log("MySQL users error: " + err.message);
+                    
+                    for (var i in results)
+                    {
+                        if (users[results[i].id])
+                            users[results[i].id].SendFriendStopsPlaying(data.userId);
+                    }
                 });
             }
             break;

@@ -10,6 +10,12 @@ var User = function() {
     this.timeout = null;
     this.avatarPath = null;
     this.isAfk = false;
+    this.isPlaying = false;
+    this.gameInfo = {
+        id: null,
+        title: null,
+        imagePath: null,
+    };
 }
 
 User.prototype.UpdateTimeout = function(sessionsConnection, usersConnection, usersArray, forcedTimeout) {
@@ -52,7 +58,7 @@ User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray
             }
         }
     });
-    // The socket _must_ exists here, check just in case.
+    // The socket _must_ exists here, unless the client is in the log in process, check just in case.
     if (self.socket)
     {
         self.socket.emit("disconnection", { type: "FORCED" });
@@ -99,30 +105,45 @@ User.prototype.UnsetAfk = function(sessionsConnection, usersConnection) {
     console.log("User " + self.id + " is no longer AFK");
 };
 User.prototype.SendFriendLogIn = function(friendId, friendName, friendAvatarPath) {
-    var self = this;
-    
-    if (self.socket)
-        self.socket.emit("friendLogin", { friendId : friendId, friendName : friendName, friendAvatarPath : friendAvatarPath });
+    if (this.socket)
+        this.socket.emit("friendLogin", { friendId : friendId, friendName : friendName, friendAvatarPath : friendAvatarPath });
 };
 User.prototype.SendFriendLogOff = function(friendId, friendName, friendAvatarPath) {
-    var self = this;
-    
-    if (self.socket)
-        self.socket.emit("friendLogoff", { friendId : friendId, friendName : friendName, friendAvatarPath : friendAvatarPath });
+    if (this.socket)
+        this.socket.emit("friendLogoff", { friendId : friendId, friendName : friendName, friendAvatarPath : friendAvatarPath });
 };
 User.prototype.SendChatMessage = function(user, message) {
-    var self = this;
-    
-    if (self.socket)
-        self.socket.emit("parseChatMessage", { friendId : user.id, friendName : user.username, message : message });
+    if (this.socket)
+        this.socket.emit("parseChatMessage", { friendId : user.id, friendName : user.username, message : message });
 };
 User.prototype.SendChatInvitation = function(user) {
-    var self = this;
-    
-    if (self.socket)
-        self.socket.emit("enterChat", { friendId : user.id, friendName : user.username });
+    if (this.socket)
+        this.socket.emit("enterChat", { friendId : user.id, friendName : user.username });
 };
-
+User.prototype.SendFriendStartsPlaying = function(friendId, gameId, gameTitle, gameImagePath) {
+    if (this.socket)
+        this.socket.emit("friendStartsPlaying", { friendId: friendId, gameId: gameId, gameTitle: gameTitle, gameImagePath: gameImagePath });
+};
+User.prototype.SendFriendStopsPlaying = function(friendId) {
+    if (this.socket)
+        this.socket.emit("friendStopsPlaying", { friendId: friendId });
+};
+User.prototype.SetPlaying = function(isPlaying, gameId, gameTitle, gameImagePath) {
+    if (isPlaying)
+    {
+        this.isPlaying = true;
+        this.gameInfo.id = gameId;
+        this.gameInfo.title = gameTitle;
+        this.gameInfo.imagePath = gameImagePath;
+    }
+    else
+    {
+        this.isPlaying = false;
+        this.gameInfo.id = null;
+        this.gameInfo.title = null;
+        this.gameInfo.imagePath = null;
+    }
+};
 function Initialize()
 {
     return new User();
