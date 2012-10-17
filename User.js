@@ -16,6 +16,7 @@ var User = function() {
         title: null,
         imagePath: null,
     };
+    this.lastNews = new Array();
 }
 
 User.prototype.UpdateTimeout = function(sessionsConnection, usersConnection, usersArray, forcedTimeout) {
@@ -34,6 +35,7 @@ User.prototype.UpdateTimeout = function(sessionsConnection, usersConnection, use
 };
 User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray, response, responseCallback) {
     var self = this;
+    var jsonLatestNews = "";
     
     clearTimeout(self.timeout);
     sessionsConnection.query("DELETE FROM sessions WHERE id = ?", [self.phpsessid], function(err) {
@@ -58,14 +60,20 @@ User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray
             }
         }
     });
-    // The socket _must_ exists here, unless the client is in the log in process, check just in case.
+    self.UpdateLatestNews();
+    /*
+     * The socket _must_ exists here, unless:
+     * 1) The client is in the log in process or
+     * 2) The data has been reloaded after a server shutdown/crash.
+     * Check just in case.
+     */
     if (self.socket)
     {
         self.socket.emit("disconnection", { type: "FORCED" });
         self.socket.disconnect();
     }
     else
-        console.log("Weird error: socket object doesn't exists for user " + self.id);
+        console.log("Error: socket object doesn't exists for user " + self.id);
     delete usersArray[self.id];
     if (response)
     {
@@ -142,6 +150,43 @@ User.prototype.SetPlaying = function(isPlaying, gameId, gameTitle, gameImagePath
         this.gameInfo.id = null;
         this.gameInfo.title = null;
         this.gameInfo.imagePath = null;
+    }
+};
+User.prototype.AddLatestNew = function(friendId, newType, extraInfo) {
+    var nextIndex = 0;
+    
+    if (this.lastNews.length)
+        nextIndex = this.lastNews.length + 1;
+    
+    this.lastNews[nextIndex] = {
+        friendId: friendId,
+        newType: newType,
+        extraInfo: extraInfo,
+    };
+};
+User.prototype.UpdateLatestNews = function(usersConnection) {
+    var self = this;
+    
+    if (self.lastNews.length)
+    {
+        console.log("Saving latest news of the user " + self.id + " in the database.");
+        var totalSavedNews = 0;
+        var jsonLatestNews = "";
+        for (var i in self.lastNews)
+        {
+            if (totalSavedNews > 10)
+                break;
+                
+            if (!self.lastNews[i])
+                continue;
+            
+            jsonLatestNews = JSON.stringify(self.lastNews[i]) + ";#;" + jsonLatestNews;
+            ++totalSavedNews;
+        }
+        usersConnection.query("REPLACE INTO user_latest_news (user_id, latest_news_json) VALUES (" + self.id + ", '" + jsonLatestNews + "')", function(err) {
+            if (err)
+                console.log("MySQL users error: " + err.message);
+        });
     }
 };
 function Initialize()

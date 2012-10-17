@@ -13,7 +13,8 @@ var ClientOpcodes = {
     OPCODE_ONLINE_FRIENDS_LIST : 7,  // Received as a request for an online friends list for an user.
     OPCODE_START_PLAYING       : 8,  // Received when a user starts playing.
     OPCODE_STOP_PLAYING        : 9,  // Received when a user stops playing.
-    TOTAL_CLIENT_OPCODES_COUNT : 10, // Total opcodes count (Not used by the way).
+    OPCODE_REAL_TIME_NEW       : 10, // Received with each real time new.
+    TOTAL_CLIENT_OPCODES_COUNT : 11, // Total opcodes count (Not used by the way).
 };
 // Server-side opcodes (packets sended by the Server)
 var ServerOpcodes = {};
@@ -186,6 +187,26 @@ OpcodeHandler.prototype.ProcessPacket = function(data, users, sessionsConnection
                     {
                         if (users[results[i].id])
                             users[results[i].id].SendFriendStopsPlaying(data.userId);
+                    }
+                });
+            }
+            break;
+        case ClientOpcodes.OPCODE_REAL_TIME_NEW:
+            if (users[data.userId] && data.newType)
+            {
+                console.log("User " + data.userId + " has sent a real time new of type: " + data.newType)
+                usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1", 
+                                      [data.userId], function(err, results, fields) {
+                    if (err)
+                        console.log("MySQL users error: " + err.message);
+                        
+                    for (var i in results)
+                    {
+                        if (users[results[i].id])
+                        {
+                            users[results[i].id].socket.emit("realTimeNew", { friendId: data.userId, newType: data.newType, extraInfo: data.extraInfo });
+                            users[results[i].id].AddLatestNew(data.userId, data.newType, data.extraInfo);
+                        }
                     }
                 });
             }

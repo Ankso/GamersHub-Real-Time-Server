@@ -204,19 +204,34 @@ io.sockets.on("connection", function (socket) {
                     socket.emit("logged", { status: "SUCCESS" });
                     users[data.userId].socket = socket;
                     users[data.userId].UpdateTimeout(sessionsConnection, usersConnection, users);
+                    // We can send now the latest news stored in the RTS, they will be added to the news stored in the DB.
+                    if (users[data.userId].lastNews.length)
+                    {
+                        console.log("Sending the latest news to user: " + data.userId);
+                        for (var i in users[data.userId].lastNews)
+                        {
+                            if (!users[data.userId].lastNews[i])
+                                continue;
+                            
+                            users[data.userId].socket.emit("realTimeNew", {
+                                friendId: users[data.userId].lastNews[i].friendId,
+                                newType: users[data.userId].lastNews[i].newType,
+                                extraInfo: users[data.userId].lastNews[i].extraInfo,
+                            });
+                        }
+                    }
                     console.log("User " + data.userId + " has reconnected successfully");
                     return;
                 }
                 users[data.userId].socket = socket;
                 socket.emit("logged", { status: "SUCCESS" });
-                // Send that a friend has logged in to the friends
+                // Send that a friend has logged in to the user's friends
                 usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1", [data.userId], function(err, results, fields) {
                     if (err)
                     {
                         console.log("MySQL error: " + err.message);
                         return;
                     }
-                    // Is this blocking code?
                     for (var i in results)
                     {
                         if (users[results[i].id])
