@@ -60,7 +60,7 @@ User.prototype.LogOff = function(sessionsConnection, usersConnection, usersArray
             }
         }
     });
-    self.UpdateLatestNews();
+    self.UpdateLatestNews(usersConnection);
     /*
      * The socket _must_ exists here, unless:
      * 1) The client is in the log in process or
