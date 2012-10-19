@@ -109,7 +109,8 @@ User.prototype.UnsetAfk = function(sessionsConnection, usersConnection) {
             console.log("MySQL error: " + err.message);
     });
     self.isAfk = false;
-    self.socket.emit("afkModeDisabled", { success: true });
+    if (self.socket)
+        self.socket.emit("afkModeDisabled", { success: true });
     console.log("User " + self.id + " is no longer AFK");
 };
 User.prototype.SendFriendLogIn = function(friendId, friendName, friendAvatarPath) {

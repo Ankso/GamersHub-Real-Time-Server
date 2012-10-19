@@ -213,11 +213,14 @@ io.sockets.on("connection", function (socket) {
                             if (!users[data.userId].lastNews[i])
                                 continue;
                             
-                            users[data.userId].socket.emit("realTimeNew", {
-                                friendId: users[data.userId].lastNews[i].friendId,
-                                newType: users[data.userId].lastNews[i].newType,
-                                extraInfo: users[data.userId].lastNews[i].extraInfo,
-                            });
+                            if (users[data.userId].socket)
+                            {
+                                users[data.userId].socket.emit("realTimeNew", {
+                                    friendId: users[data.userId].lastNews[i].friendId,
+                                    newType: users[data.userId].lastNews[i].newType,
+                                    extraInfo: users[data.userId].lastNews[i].extraInfo,
+                                });
+                            }
                         }
                     }
                     console.log("User " + data.userId + " has reconnected successfully");

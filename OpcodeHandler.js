@@ -98,7 +98,8 @@ OpcodeHandler.prototype.ProcessPacket = function(data, users, sessionsConnection
                 else
                 {
                     console.log("User " + data.userId + " can't unlock his session, incorrect password");
-                    users[data.userId].socket.emit("afkModeDisabled", { success: false });
+                    if (users[data.userId].socket)
+                        users[data.userId].socket.emit("afkModeDisabled", { success: false });
                 }
             }
             break;
@@ -149,8 +150,8 @@ OpcodeHandler.prototype.ProcessPacket = function(data, users, sessionsConnection
                         friendsList[0] = "NO_ONLINE_FRIENDS";
                         console.log("User " + data.userId + " has no online friends.");
                     }
-
-                    users[data.userId].socket.emit("onlineFriendsList", { friendsList: friendsList});
+                    if (users[data.userId].socket)
+                        users[data.userId].socket.emit("onlineFriendsList", { friendsList: friendsList});
                 });
             }
             break;
@@ -204,7 +205,8 @@ OpcodeHandler.prototype.ProcessPacket = function(data, users, sessionsConnection
                     {
                         if (users[results[i].id])
                         {
-                            users[results[i].id].socket.emit("realTimeNew", { friendId: data.userId, newType: data.newType, extraInfo: data.extraInfo });
+                            if (users[results[i].id].socket)
+                                users[results[i].id].socket.emit("realTimeNew", { friendId: data.userId, newType: data.newType, extraInfo: data.extraInfo });
                             users[results[i].id].AddLatestNew(data.userId, data.newType, data.extraInfo);
                         }
                     }
