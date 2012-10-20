@@ -124,7 +124,8 @@ OpcodeHandler.prototype.ProcessPacket = function(data, users, sessionsConnection
                     
                     if (results[0])
                     {
-                        for (var i in results)
+                        var i = 0;
+                        for (i in results)
                         {
                             friendsList[i] = {
                                 id: results[i].id,
