@@ -187,7 +187,8 @@ function handler (request, response) {
 
 function InitializeSocketIO()
 {
-    io.disable("heartbeats");
+    // We can't disable heartbets because it seems that socket.io is bugged :S
+    // io.disable("heartbeats");
     io.sockets.on("connection", function (socket) {
         socket.emit("requestCredentials", { status: "SUCCESS" });
         socket.on("sendCredentials", function (data) {
