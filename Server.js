@@ -21,13 +21,14 @@ var config = require("./Config.js").Initialize();
 var opcodeHandler = require("./OpcodeHandler.js").Initialize();
 var server = require("http").createServer(handler);
 var url = require("url");
-var io = require("socket.io").listen(server);
+var io = require("socket.io");
 var querystring = require("querystring");
 var mysql = require("mysql");
 var usersConnection = mysql.createConnection(config.MYSQL);
 var sessionsConnection = mysql.createConnection(config.MYSQL);
 var users = new Array();
 
+io.disable("heartbeats");
 console.log("Starting server on port 5124...");
 server.listen(5124);
 console.log("Server started successfully.");
@@ -77,10 +78,10 @@ usersConnection.query("SELECT a.id, a.username, a.password_sha1, a.random_sessio
                 });
             }
         }
+        io.listen(5124);
+        console.log("Server is now listening for upcoming connections.");
     });
 });
-
-console.log("Server is now listening for upcoming connections.");
 
 function handler (request, response) {
     var urlParts = url.parse(request.url, true);
