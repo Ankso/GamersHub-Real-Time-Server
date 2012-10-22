@@ -21,14 +21,14 @@ var config = require("./Config.js").Initialize();
 var opcodeHandler = require("./OpcodeHandler.js").Initialize();
 var server = require("http").createServer(handler);
 var url = require("url");
-var io = require("socket.io");
+var io = require("socket.io").listen(server);
 var querystring = require("querystring");
 var mysql = require("mysql");
 var usersConnection = mysql.createConnection(config.MYSQL);
 var sessionsConnection = mysql.createConnection(config.MYSQL);
 var users = new Array();
 
-io.disable("heartbeats");
+
 console.log("Starting server on port 5124...");
 server.listen(5124);
 console.log("Server started successfully.");
@@ -78,8 +78,7 @@ usersConnection.query("SELECT a.id, a.username, a.password_sha1, a.random_sessio
                 });
             }
         }
-        io.listen(5124);
-        console.log("Server is now listening for upcoming connections.");
+        InitializeSocketIO();
     });
 });
 
@@ -186,80 +185,85 @@ function handler (request, response) {
     }
 }
 
-io.sockets.on("connection", function (socket) {
-    socket.emit("requestCredentials", { status: "SUCCESS" });
-    socket.on("sendCredentials", function (data) {
-        console.log("User " + data.userId + " is trying to open a new socket, RNDSESSID: " + data.sessionId);
-        if (users[data.userId])
-        {
-            if (users[data.userId].sessionId == data.sessionId)
+function InitializeSocketIO()
+{
+    io.disable("heartbeats");
+    io.sockets.on("connection", function (socket) {
+        socket.emit("requestCredentials", { status: "SUCCESS" });
+        socket.on("sendCredentials", function (data) {
+            console.log("User " + data.userId + " is trying to open a new socket, RNDSESSID: " + data.sessionId);
+            if (users[data.userId])
             {
-                // Add all necessary handlers to the socket
-                console.log("User " + data.userId + " data OK, connection established");
-                socket.on("packet", function(data) {
-                    opcodeHandler.ProcessPacket(data, users, sessionsConnection, usersConnection);
-                });
-                if (users[data.userId].socket)
+                if (users[data.userId].sessionId == data.sessionId)
                 {
-                    // If the user has an opened socket stored, just replace the old by the new one.
-                    socket.emit("logged", { status: "SUCCESS" });
-                    users[data.userId].socket = socket;
-                    users[data.userId].UpdateTimeout(sessionsConnection, usersConnection, users);
-                    // We can send now the latest news stored in the RTS, they will be added to the news stored in the DB.
-                    if (users[data.userId].lastNews.length)
+                    // Add all necessary handlers to the socket
+                    console.log("User " + data.userId + " data OK, connection established");
+                    socket.on("packet", function(data) {
+                        opcodeHandler.ProcessPacket(data, users, sessionsConnection, usersConnection);
+                    });
+                    if (users[data.userId].socket)
                     {
-                        console.log("Sending the latest news to user: " + data.userId);
-                        for (var i in users[data.userId].lastNews)
+                        // If the user has an opened socket stored, just replace the old by the new one.
+                        socket.emit("logged", { status: "SUCCESS" });
+                        users[data.userId].socket = socket;
+                        users[data.userId].UpdateTimeout(sessionsConnection, usersConnection, users);
+                        // We can send now the latest news stored in the RTS, they will be added to the news stored in the DB.
+                        if (users[data.userId].lastNews.length)
                         {
-                            if (!users[data.userId].lastNews[i])
-                                continue;
-                            
-                            if (users[data.userId].socket)
+                            console.log("Sending the latest news to user: " + data.userId);
+                            for (var i in users[data.userId].lastNews)
                             {
-                                users[data.userId].socket.emit("realTimeNew", {
-                                    friendId: users[data.userId].lastNews[i].friendId,
-                                    newType: users[data.userId].lastNews[i].newType,
-                                    extraInfo: users[data.userId].lastNews[i].extraInfo,
-                                });
+                                if (!users[data.userId].lastNews[i])
+                                    continue;
+                                
+                                if (users[data.userId].socket)
+                                {
+                                    users[data.userId].socket.emit("realTimeNew", {
+                                        friendId: users[data.userId].lastNews[i].friendId,
+                                        newType: users[data.userId].lastNews[i].newType,
+                                        extraInfo: users[data.userId].lastNews[i].extraInfo,
+                                    });
+                                }
                             }
                         }
-                    }
-                    console.log("User " + data.userId + " has reconnected successfully");
-                    return;
-                }
-                users[data.userId].socket = socket;
-                socket.emit("logged", { status: "SUCCESS" });
-                // Send that a friend has logged in to the user's friends
-                usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1", [data.userId], function(err, results, fields) {
-                    if (err)
-                    {
-                        console.log("MySQL error: " + err.message);
+                        console.log("User " + data.userId + " has reconnected successfully");
                         return;
                     }
-                    for (var i in results)
-                    {
-                        if (users[results[i].id])
-                            users[results[i].id].SendFriendLogIn(users[data.userId].id, users[data.userId].username, users[data.userId].avatarPath);
-                    }
-                });
+                    users[data.userId].socket = socket;
+                    socket.emit("logged", { status: "SUCCESS" });
+                    // Send that a friend has logged in to the user's friends
+                    usersConnection.query("SELECT a.id FROM user_data AS a, user_friends AS b WHERE b.user_id = ? AND b.friend_id = a.id AND a.is_online = 1", [data.userId], function(err, results, fields) {
+                        if (err)
+                        {
+                            console.log("MySQL error: " + err.message);
+                            return;
+                        }
+                        for (var i in results)
+                        {
+                            if (users[results[i].id])
+                                users[results[i].id].SendFriendLogIn(users[data.userId].id, users[data.userId].username, users[data.userId].avatarPath);
+                        }
+                    });
+                }
+                else
+                {
+                    console.log("User " + data.userId + " data incorrect, connection closed");
+                    socket.emit("logged", { status: "INCORRECT" });
+                    socket.emit("disconnection", { type: "FORCED" });
+                    socket.disconnect();
+                }
             }
             else
             {
-                console.log("User " + data.userId + " data incorrect, connection closed");
-                socket.emit("logged", { status: "INCORRECT" });
+                console.log("User " + data.userId + " is not registered, connection closed");
+                socket.emit("logged", { status: "FAILED" });
                 socket.emit("disconnection", { type: "FORCED" });
                 socket.disconnect();
             }
-        }
-        else
-        {
-            console.log("User " + data.userId + " is not registered, connection closed");
-            socket.emit("logged", { status: "FAILED" });
-            socket.emit("disconnection", { type: "FORCED" });
-            socket.disconnect();
-        }
+        });
     });
-});
+    console.log("Server is now listening for upcoming connections");
+}
 
 usersConnection.on('close', function(err) {
     if (err)
